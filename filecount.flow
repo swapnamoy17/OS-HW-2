@@ -1,0 +1,9 @@
+node=list_files
+command=ls
+
+node=word_count
+command=wc
+
+pipe=doit
+from=list_files
+to=word_count
