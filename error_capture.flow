@@ -1,0 +1,12 @@
+node=mkdir_existing
+command=mkdir existing_dir
+
+error=mkdir_error
+node=mkdir_existing
+
+pipe=error_action
+from=mkdir_error
+to=process_error
+
+node=process_error
+command=wc -w

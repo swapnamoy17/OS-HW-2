@@ -1,0 +1,16 @@
+file=input_file
+input=input.txt
+
+node=process_input
+command=tr a-z A-Z
+
+file=output_file
+output=output.txt
+
+pipe=process_action
+from=input_file
+to=process_input
+
+pipe=write_output
+from=process_action
+to=output_file
