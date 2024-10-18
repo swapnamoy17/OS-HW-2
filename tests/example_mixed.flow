@@ -1,0 +1,17 @@
+node=list_files
+command=ls
+
+node=filter_cpp
+command=grep .cpp
+
+pipe=list_to_filter
+from=list_files
+to=filter_cpp
+
+node=print_done
+command=echo "done"
+
+concatenate=filtered_and_done
+parts=2
+part_0=list_to_filter
+part_1=print_done

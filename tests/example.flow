@@ -1,0 +1,14 @@
+node=list_files
+command=ls
+
+node=word_count
+command=wc
+
+pipe=doit
+from=list_files
+to=word_count
+
+concatenate=example_concat
+parts=2
+part_0=list_files
+part_1=doit

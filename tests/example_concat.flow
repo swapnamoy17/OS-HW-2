@@ -1,0 +1,14 @@
+node=list_files
+command=ls
+
+node=print_done
+command=echo done
+
+concatenate=ls_and_done
+parts=2
+part_0=list_files
+part_1=print_done
+
+pipe=test
+from=ls_and_done
+to=print_done
