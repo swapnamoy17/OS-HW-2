@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <sstream>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -30,24 +29,23 @@ public:
     vector<string> part_names;
 };
 
-class Error {
+class StderrNode {
 public:
     string name;
-    string node_name;
+    string from;
 };
 
-class FileIO {
+class FileNode {
 public:
     string name;
     string filename;
-    string mode; // "input" or "output"
 };
 
 map<string, Node> nodes;
 map<string, Pipe> pipes;
 map<string, Concatenate> concatenates;
-map<string, Error> errors;
-map<string, FileIO> files;
+map<string, StderrNode> stderrNodes;
+map<string, FileNode> fileNodes;
 
 void trim(string &s) {
     size_t start = s.find_first_not_of(" \t\r\n");
@@ -83,29 +81,28 @@ void parse_flow_file(const string &filename) {
         trim(value);
 
         // Specific conditions first
-        if (key == "node" && current_section == "error") {
-            errors[current_name].node_name = value;
-            current_section = "";
-            current_name = "";
-        } else if (key == "command" && current_section == "node") {
+        if (current_section == "node" && key == "command") {
             nodes[current_name].command = value;
             current_section = "";
             current_name = "";
-        } else if (key == "from" && current_section == "pipe") {
+        } else if (current_section == "pipe" && key == "from") {
             pipes[current_name].from = value;
-        } else if (key == "to" && current_section == "pipe") {
+        } else if (current_section == "pipe" && key == "to") {
             pipes[current_name].to = value;
             current_section = "";
             current_name = "";
-        } else if (key.substr(0, 5) == "part_" && current_section == "concatenate") {
+        } else if (current_section == "concatenate" && key.substr(0, 5) == "part_") {
             concatenates[current_name].part_names.push_back(value);
-        } else if ((key == "input" || key == "output") && current_section == "file") {
-            files[current_name].filename = value;
-            files[current_name].mode = key;
+        } else if (current_section == "stderr" && key == "from") {
+            stderrNodes[current_name].from = value;
+            current_section = "";
+            current_name = "";
+        } else if (current_section == "file" && key == "name") {
+            fileNodes[current_name].filename = value;
             current_section = "";
             current_name = "";
         }
-        // General conditions after
+        // General conditions
         else if (key == "node") {
             current_section = "node";
             current_name = value;
@@ -113,13 +110,6 @@ void parse_flow_file(const string &filename) {
             node.name = current_name;
             node.command = "";
             nodes[current_name] = node;
-        } else if (key == "error") {
-            current_section = "error";
-            current_name = value;
-            Error error_obj;
-            error_obj.name = current_name;
-            error_obj.node_name = "";
-            errors[current_name] = error_obj;
         } else if (key == "pipe") {
             current_section = "pipe";
             current_name = value;
@@ -134,14 +124,20 @@ void parse_flow_file(const string &filename) {
             Concatenate concat;
             concat.name = current_name;
             concatenates[current_name] = concat;
+        } else if (key == "stderr") {
+            current_section = "stderr";
+            current_name = value;
+            StderrNode stderrNode;
+            stderrNode.name = current_name;
+            stderrNode.from = "";
+            stderrNodes[current_name] = stderrNode;
         } else if (key == "file") {
             current_section = "file";
             current_name = value;
-            FileIO file_obj;
-            file_obj.name = current_name;
-            file_obj.filename = "";
-            file_obj.mode = "";
-            files[current_name] = file_obj;
+            FileNode fileNode;
+            fileNode.name = current_name;
+            fileNode.filename = "";
+            fileNodes[current_name] = fileNode;
         } else {
             // Unknown key or outside of a section
         }
@@ -151,7 +147,7 @@ void parse_flow_file(const string &filename) {
 
 void executeItem(const string& itemName, int input_fd, int output_fd);
 
-void executeNode(const Node& node, int input_fd, int output_fd, int error_fd = -1) {
+void executeNode(const Node& node, int input_fd, int output_fd, int error_fd = STDERR_FILENO) {
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
@@ -163,7 +159,7 @@ void executeNode(const Node& node, int input_fd, int output_fd, int error_fd = -
             dup2(output_fd, STDOUT_FILENO);
             close(output_fd);
         }
-        if (error_fd != -1) {
+        if (error_fd != STDERR_FILENO) {
             dup2(error_fd, STDERR_FILENO);
             close(error_fd);
         }
@@ -178,7 +174,7 @@ void executeNode(const Node& node, int input_fd, int output_fd, int error_fd = -
         if (output_fd != STDOUT_FILENO) {
             close(output_fd);
         }
-        if (error_fd != -1) {
+        if (error_fd != STDERR_FILENO) {
             close(error_fd);
         }
         waitpid(pid, NULL, 0);
@@ -199,13 +195,7 @@ void executePipe(const Pipe& pipe_obj, int input_fd, int output_fd) {
     if (pid1 == 0) {
         // First child process ('from' item)
         close(pipefd[0]); // Close unused read end
-        if (input_fd != STDIN_FILENO) {
-            dup2(input_fd, STDIN_FILENO);
-            close(input_fd);
-        }
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-        executeItem(pipe_obj.from, STDIN_FILENO, STDOUT_FILENO);
+        executeItem(pipe_obj.from, input_fd, pipefd[1]);
         exit(EXIT_SUCCESS);
     }
 
@@ -213,13 +203,7 @@ void executePipe(const Pipe& pipe_obj, int input_fd, int output_fd) {
     if (pid2 == 0) {
         // Second child process ('to' item)
         close(pipefd[1]); // Close unused write end
-        dup2(pipefd[0], STDIN_FILENO);
-        close(pipefd[0]);
-        if (output_fd != STDOUT_FILENO) {
-            dup2(output_fd, STDOUT_FILENO);
-            close(output_fd);
-        }
-        executeItem(pipe_obj.to, STDIN_FILENO, STDOUT_FILENO);
+        executeItem(pipe_obj.to, pipefd[0], output_fd);
         exit(EXIT_SUCCESS);
     }
 
@@ -242,25 +226,25 @@ void executeConcatenate(const Concatenate& concat, int input_fd, int output_fd) 
     }
 }
 
-void executeError(const Error& error_obj, int input_fd, int output_fd) {
+void executeStderr(const StderrNode& stderrNode, int input_fd, int output_fd) {
     int pipefd[2];
     if (pipe(pipefd) == -1) {
         perror("pipe failed");
         exit(EXIT_FAILURE);
     }
 
-    // Execute the node and redirect its stderr to the pipe
-    if (nodes.find(error_obj.node_name) != nodes.end()) {
-        executeNode(nodes[error_obj.node_name], input_fd, STDOUT_FILENO, pipefd[1]);
+    // Execute the 'from' node and redirect its stderr to pipefd[1]
+    if (nodes.find(stderrNode.from) != nodes.end()) {
+        executeNode(nodes[stderrNode.from], input_fd, STDOUT_FILENO, pipefd[1]);
     } else {
-        cerr << "Error: Node '" << error_obj.node_name << "' not found for error capture" << endl;
+        cerr << "Error: Node '" << stderrNode.from << "' not found for stderr" << endl;
         exit(EXIT_FAILURE);
     }
 
     close(pipefd[1]); // Close write end
 
-    // Read from the pipe and write to output_fd
-    char buffer[1024];
+    // Read from pipefd[0] and write to output_fd
+    char buffer[4096];
     ssize_t bytes_read;
     while ((bytes_read = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
         write(output_fd, buffer, bytes_read);
@@ -268,46 +252,59 @@ void executeError(const Error& error_obj, int input_fd, int output_fd) {
     close(pipefd[0]);
 }
 
-void executeFileIO(const FileIO& file_obj, int input_fd, int output_fd) {
-    if (file_obj.mode == "input") {
-        int file_fd = open(file_obj.filename.c_str(), O_RDONLY);
+void executeFileNode(const FileNode& fileNode, int input_fd, int output_fd) {
+    if (input_fd == STDIN_FILENO && output_fd == STDOUT_FILENO) {
+        cerr << "Error: File node '" << fileNode.name << "' is not connected properly" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    if (input_fd == STDIN_FILENO) {
+        // Input file: read from file and write to output_fd
+        int file_fd = open(fileNode.filename.c_str(), O_RDONLY);
         if (file_fd == -1) {
             perror("Failed to open input file");
             exit(EXIT_FAILURE);
         }
-
         // Copy data from file_fd to output_fd
         char buffer[4096];
         ssize_t bytes_read;
         while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
-            ssize_t bytes_written = write(output_fd, buffer, bytes_read);
-            if (bytes_written == -1) {
-                perror("Failed to write to output");
-                exit(EXIT_FAILURE);
-            }
+            write(output_fd, buffer, bytes_read);
         }
         close(file_fd);
-    } else if (file_obj.mode == "output") {
-        int file_fd = open(file_obj.filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    } else {
+        // Output file: read from input_fd, write to file, and pass data along if output_fd is specified
+        int file_fd = open(fileNode.filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (file_fd == -1) {
             perror("Failed to open output file");
             exit(EXIT_FAILURE);
         }
-
-        // Copy data from input_fd to file_fd
+        // Read from input_fd, write to file_fd, and to output_fd
         char buffer[4096];
         ssize_t bytes_read;
         while ((bytes_read = read(input_fd, buffer, sizeof(buffer))) > 0) {
+            // Write to the file
             ssize_t bytes_written = write(file_fd, buffer, bytes_read);
             if (bytes_written == -1) {
                 perror("Failed to write to file");
                 exit(EXIT_FAILURE);
             }
+            // Pass data along if needed
+            if (output_fd != STDOUT_FILENO) {
+                bytes_written = write(output_fd, buffer, bytes_read);
+                if (bytes_written == -1) {
+                    perror("Failed to write to output");
+                    exit(EXIT_FAILURE);
+                }
+            }
         }
         close(file_fd);
-    } else {
-        cerr << "Error: Invalid mode for file IO" << endl;
-        exit(EXIT_FAILURE);
+    }
+    if (input_fd != STDIN_FILENO) {
+        close(input_fd);
+    }
+    if (output_fd != STDOUT_FILENO) {
+        close(output_fd);
     }
 }
 
@@ -318,10 +315,10 @@ void executeItem(const string& itemName, int input_fd, int output_fd) {
         executePipe(pipes[itemName], input_fd, output_fd);
     } else if (concatenates.find(itemName) != concatenates.end()) {
         executeConcatenate(concatenates[itemName], input_fd, output_fd);
-    } else if (errors.find(itemName) != errors.end()) {
-        executeError(errors[itemName], input_fd, output_fd);
-    } else if (files.find(itemName) != files.end()) {
-        executeFileIO(files[itemName], input_fd, output_fd);
+    } else if (stderrNodes.find(itemName) != stderrNodes.end()) {
+        executeStderr(stderrNodes[itemName], input_fd, output_fd);
+    } else if (fileNodes.find(itemName) != fileNodes.end()) {
+        executeFileNode(fileNodes[itemName], input_fd, output_fd);
     } else {
         cerr << "Error: Item '" << itemName << "' not found" << endl;
         exit(EXIT_FAILURE);
@@ -342,8 +339,8 @@ int main(int argc, char *argv[]) {
     if (nodes.find(action_name) != nodes.end() ||
         pipes.find(action_name) != pipes.end() ||
         concatenates.find(action_name) != concatenates.end() ||
-        errors.find(action_name) != errors.end() ||
-        files.find(action_name) != files.end()) {
+        stderrNodes.find(action_name) != stderrNodes.end() ||
+        fileNodes.find(action_name) != fileNodes.end()) {
         executeItem(action_name, STDIN_FILENO, STDOUT_FILENO);
     } else {
         cerr << "Error: Action '" << action_name << "' not found" << endl;

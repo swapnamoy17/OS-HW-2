@@ -1,0 +1,43 @@
+1. 
+ls | wc
+./flow filecount.flow doit
+
+2.
+( cat foo.txt ; cat foo.txt | sed 's/o/u/g' ) | wc
+./flow complicated.flow shenanigan
+
+3.
+tr a-z A-Z < input.txt > output.txt
+./flow file_io.flow write_output
+
+4.
+mkdir existing_dir 2>&1 1>/dev/null | wc -w
+./flow error_capture.flow error_action
+
+5.
+(ls; echo done) | echo done
+./flow tests/example_concat.flow test
+
+6.
+mkdir a 2>&1 1>/dev/null | wc
+./flow tests/stderr.flow catch_errors
+
+7.
+cat result.txt > yash.txt && cat yash.txt | wc
+./flow tests/file.flow process_pipe
+
+8.
+(ls; ls | wc)
+./flow tests/example.flow example_concat
+
+9.
+cat foo.txt | sed 's/o/u/g'
+./flow tests/example_sed.flow foo_to_fuu
+
+10.
+(ls | grep .cpp; echo "done")
+./flow tests/example_mixed.flow filtered_and_done
+
+11.
+ls | grep .cpp
+./flow tests/example_grep.flow list_and_filter
