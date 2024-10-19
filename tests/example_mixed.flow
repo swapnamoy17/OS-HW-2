@@ -1,12 +1,12 @@
 node=list_files
 command=ls
 
-node=filter_cpp
-command=grep .cpp
+node=filter_text
+command=grep .txt
 
 pipe=list_to_filter
 from=list_files
-to=filter_cpp
+to=filter_text
 
 node=print_done
 command=echo "done"

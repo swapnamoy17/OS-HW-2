@@ -5,7 +5,7 @@ file=input_file
 name=result.txt
 
 file=output_file
-name=yash.txt
+name=sarthak.txt
 
 node=word_count
 command=wc

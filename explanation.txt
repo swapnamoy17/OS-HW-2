@@ -1,0 +1,27 @@
+The flow.cpp program interprets and executes flow graphs described in a custom .flow file, 
+chaining commands and managing inputs, outputs, errors, and files in a Unix-like pipeline. 
+It supports nodes, pipes, concatenation, error handling, and file operations.
+
+1. Node Implementation
+Nodes represent individual commands to be executed.
+Each node is stored in the global nodes map.
+The executeNode function uses fork() to run the command in a child process, redirecting stdin, stdout, and optionally stderr.
+
+2. Pipe Implementation
+Pipes link two nodes, passing the output of one node as the input to another.
+Pipes are represented by the Pipe class and managed by executePipe, which sets up a Unix pipe to connect nodes.
+
+3. Concatenation Implementation
+Concatenation combines the outputs of multiple nodes into one.
+The executeConcatenate function sequentially runs each part, reading the output into a buffer and passing it to the next node.
+
+4. Extra Credit: Error and File Handling
+Error (stderr) Handling: Captures and redirects a node's stderr output using pipes, represented by the StderrNode class.
+File Handling: Reads from or writes to files, using the FileNode class. executeFileNode manages file interactions, enabling input/output redirection.
+
+Challenges
+Data Flow Management: Handling intermediate pipes and concatenations without data loss was complex.
+Error Capturing: Redirecting stderr while avoiding deadlocks required careful pipe management.
+
+Assumptions
+Input/output files are accessible and valid commands are used in the .flow file.

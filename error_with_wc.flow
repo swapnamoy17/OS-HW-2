@@ -1,0 +1,12 @@
+node=mkdir_root
+command=mkdir /root/test_dir
+
+stderr=capture_error
+from=mkdir_root
+
+node=word_count
+command=wc
+
+pipe=error_wc
+from=capture_error
+to=word_count

@@ -1,8 +1,8 @@
 node=mkdir_existing
 command=mkdir existing_dir
 
-error=mkdir_error
-node=mkdir_existing
+stderr=mkdir_error
+from=mkdir_existing
 
 pipe=error_action
 from=mkdir_error

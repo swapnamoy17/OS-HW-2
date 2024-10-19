@@ -1,0 +1,119 @@
+TEST-1
+TEST-BEGIN
+COMMAND:
+ls | wc
+
+FLOW COMMAND:
+./flow filecount.flow doit
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters in the current directory, similar to wc output>
+TEST-END
+
+TEST-2
+TEST-BEGIN
+COMMAND:
+( cat foo.txt ; cat foo.txt | sed 's/o/u/g' ) | wc
+
+FLOW COMMAND:
+./flow complicated.flow shenanigan
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters from the concatenated output of foo.txt with 'o' replaced by 'u'>
+TEST-END
+
+TEST-3
+TEST-BEGIN
+COMMAND:
+tr a-z A-Z < input.txt > output.txt
+
+FLOW COMMAND:
+./flow file_io.flow write_output
+
+EXPECTED OUTPUT:
+All lowercase letters in input.txt should be converted to uppercase and saved to output.txt.
+TEST-END
+
+TEST-4
+TEST-BEGIN
+COMMAND:
+mkdir existing_dir 2>&1 1>/dev/null | wc -w
+
+FLOW COMMAND:
+./flow error_capture.flow error_action
+
+EXPECTED OUTPUT:
+<number of words in the error message indicating that 'existing_dir' already exists>
+TEST-END
+
+TEST-5
+TEST-BEGIN
+COMMAND:
+mkdir a 2>&1 1>/dev/null | wc
+
+FLOW COMMAND:
+./flow tests/stderr.flow catch_errors
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters in the error message from trying to create 'a' directory twice>
+TEST-END
+
+TEST-6
+TEST-BEGIN
+COMMAND:
+cat result.txt > sarthak.txt && cat sarthak.txt | wc
+
+FLOW COMMAND:
+./flow tests/file.flow process_pipe
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters in result.txt>
+TEST-END
+
+TEST-7
+TEST-BEGIN
+COMMAND:
+mkdir /root/test_dir 2>&1 | wc
+
+FLOW COMMAND:
+./flow error_with_wc.flow error_wc
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters in the error message indicating permission denial>
+TEST-END
+
+TEST-8
+TEST-BEGIN
+COMMAND:
+(ls; echo "done"; echo "finished") | wc
+
+FLOW COMMAND:
+./flow multi_concat.flow concat_pipe
+
+EXPECTED OUTPUT:
+<number of lines, words, and characters from concatenated output of 'ls', 'done', and 'finished'>
+TEST-END
+
+TEST-9
+TEST-BEGIN
+COMMAND:
+(ls | grep .txt; echo "done")
+
+FLOW COMMAND:
+./flow tests/example_mixed.flow filtered_and_done
+
+EXPECTED OUTPUT:
+List of .txt files in the directory followed by 'done'.
+TEST-END
+
+TEST-10
+TEST-BEGIN
+COMMAND:
+ls | grep .txt
+
+FLOW COMMAND:
+./flow tests/example_grep.flow list_and_filter
+
+EXPECTED OUTPUT:
+List of .txt files in the current directory.
+TEST-END

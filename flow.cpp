@@ -221,10 +221,45 @@ void executePipe(const Pipe& pipe_obj, int input_fd, int output_fd) {
 }
 
 void executeConcatenate(const Concatenate& concat, int input_fd, int output_fd) {
+    // Temporary storage to hold concatenated results
+    string concatenated_output;
+
     for (const auto& partName : concat.part_names) {
-        executeItem(partName, input_fd, output_fd);
+        int pipefd[2];
+        if (pipe(pipefd) == -1) {
+            perror("pipe failed");
+            exit(EXIT_FAILURE);
+        }
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Child process
+            close(pipefd[0]); // Close read end of the pipe
+            executeItem(partName, input_fd, pipefd[1]);
+            close(pipefd[1]); // Close write end of the pipe
+            exit(EXIT_SUCCESS);
+        } else if (pid > 0) {
+            // Parent process
+            close(pipefd[1]); // Close write end
+
+            // Read output from the child process and append to the buffer
+            char buffer[4096];
+            ssize_t bytes_read;
+            while ((bytes_read = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
+                concatenated_output.append(buffer, bytes_read);
+            }
+            close(pipefd[0]); // Close read end of the pipe
+            waitpid(pid, NULL, 0); // Wait for the child process to finish
+        } else {
+            perror("fork failed");
+            exit(EXIT_FAILURE);
+        }
     }
+
+    // Write the concatenated result to the final output
+    write(output_fd, concatenated_output.c_str(), concatenated_output.size());
 }
+
 
 void executeStderr(const StderrNode& stderrNode, int input_fd, int output_fd) {
     int pipefd[2];

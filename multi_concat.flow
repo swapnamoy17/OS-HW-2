@@ -1,0 +1,21 @@
+node=list_files
+command=ls
+
+node=echo_done
+command=echo "done"
+
+node=echo_finished
+command=echo "finished"
+
+concatenate=multi_concat
+parts=3
+part_0=list_files
+part_1=echo_done
+part_2=echo_finished
+
+node=word_count
+command=wc
+
+pipe=concat_pipe
+from=multi_concat
+to=word_count

@@ -2,7 +2,7 @@ node=list_files
 command=ls
 
 node=filter_files
-command=grep .cpp
+command=grep .txt
 
 pipe=list_and_filter
 from=list_files
